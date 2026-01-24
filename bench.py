@@ -173,7 +173,7 @@ def run(
     db: str = typer.Option(
         "sqlite",
         "--db",
-        help="Database to use (postgres or sqlite)",
+        help="Database: postgres, mysql, sqlite, all",
     ),
     db_url: Optional[str] = typer.Option(
         None,

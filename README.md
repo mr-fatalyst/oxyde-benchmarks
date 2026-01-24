@@ -4,18 +4,19 @@ Comprehensive benchmark suite comparing Python ORM performance, including Oxyde 
 
 ## Overview
 
-This project benchmarks 8 Python ORMs across 3 databases:
+This project benchmarks 7 Python ORMs across 3 databases:
 
 | ORM | Type | Notes |
 |-----|------|-------|
 | **Oxyde** | async | Rust core via PyO3 |
-| **asyncpg/aiosqlite** | async | Raw driver baseline |
 | **Django ORM** | sync→async | Industry standard |
 | **SQLAlchemy 2.0** | async | Most popular |
 | **Tortoise ORM** | async | Django-like async |
 | **Piccolo** | async | Modern typed ORM |
 | **Peewee** | sync→async | Lightweight |
 | **SQLModel** | async | Pydantic-based |
+
+Raw drivers (asyncpg, aiomysql, aiosqlite) are also tested as baseline.
 
 **Databases:** PostgreSQL, MySQL, SQLite
 
@@ -25,7 +26,7 @@ See the full benchmark report with charts and detailed analysis:
 
 **[View Benchmark Report (REPORT.md)](REPORT.md)**
 
-Latest results from January 23, 2026 comparing all 8 ORMs across PostgreSQL, MySQL, and SQLite.
+Latest results from January 23, 2026 comparing all 7 ORMs across PostgreSQL, MySQL, and SQLite.
 
 ## Quick Start
 
@@ -121,10 +122,14 @@ docker-compose run bench-sqlite
 - `prefetch_related` - Avoid N+1 queries
 - `nested_prefetch` - Multi-level prefetch
 
-### Concurrent (3 tests, async only)
+### Concurrent (7 tests, async only)
 - `concurrent_10` - 10 parallel queries
+- `concurrent_25` - 25 parallel queries
 - `concurrent_50` - 50 parallel queries
+- `concurrent_75` - 75 parallel queries
 - `concurrent_100` - 100 parallel queries
+- `concurrent_150` - 150 parallel queries
+- `concurrent_200` - 200 parallel queries
 
 ## Command Line Options
 
@@ -136,10 +141,11 @@ Options:
   --db-url TEXT      Custom database URL
   --orms TEXT        Comma-separated list of ORMs
   --tests TEXT       Comma-separated list of tests
-  --category TEXT    Test category: crud, queries, relations, concurrent
+  --category TEXT    Test category: crud, queries, relations, concurrent, mutating, readonly
   --iterations INT   Number of iterations (default: 100)
   --warmup INT       Warmup iterations (default: 10)
   --output TEXT      Output directory (default: results)
+  --logs             Show subprocess stderr for debugging
 ```
 
 ## Results
@@ -147,10 +153,10 @@ Options:
 Results are saved to `results/{timestamp}_{database}/`:
 
 ```
-results/2025-12-02_12-00-00_postgres/
-├── environment.json   # System info, versions
-├── results.json       # Raw benchmark data
-└── report.md          # Markdown report
+results/2026-01-23_09-12-34_postgres/
+├── env.json             # System info, versions
+├── postgres.json        # Raw benchmark data
+└── postgres_report.md   # Markdown report
 ```
 
 ## Methodology
@@ -158,7 +164,6 @@ results/2025-12-02_12-00-00_postgres/
 - **Isolation**: Database reset before each test
 - **Warmup**: 10 iterations (discarded)
 - **Measurement**: 100 iterations per test
-- **Reproducibility**: Fixed random seed (42)
 - **Metrics**: ops/sec, mean, median, stddev, p95, p99
 - **Fair comparison**: Same SQL, same data volume, same pool settings
 

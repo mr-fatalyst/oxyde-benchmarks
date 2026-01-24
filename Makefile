@@ -37,7 +37,6 @@ help:
 	@echo "  ORMS=oxyde,django    Run specific ORMs only"
 	@echo "  TESTS=select_pk      Run specific tests only"
 	@echo "  ITERATIONS=100       Set number of iterations"
-	@echo "  ISOLATED=1           Run each ORM in isolated subprocess (accurate memory)"
 	@echo "  LOGS=1               Show subprocess stderr for debugging"
 	@echo "  PYTHON_VERSION=3.11  Python version for Docker (default: 3.12)"
 	@echo "  MEMORY=4g            Container memory limit (default: 4g)"
@@ -71,7 +70,6 @@ $(BIN)/python bench.py --db $(1) \
 	$(if $(TESTS),--tests $(TESTS)) \
 	$(if $(ITERATIONS),--iterations $(ITERATIONS)) \
 	$(if $(WARMUP),--warmup $(WARMUP)) \
-	$(if $(ISOLATED),--isolated) \
 	$(if $(LOGS),--logs)
 endef
 
@@ -114,7 +112,6 @@ docker run --rm \
 	$(if $(TESTS),--tests $(TESTS)) \
 	$(if $(ITERATIONS),--iterations $(ITERATIONS)) \
 	$(if $(WARMUP),--warmup $(WARMUP)) \
-	$(if $(ISOLATED),--isolated) \
 	$(if $(LOGS),--logs)
 endef
 
