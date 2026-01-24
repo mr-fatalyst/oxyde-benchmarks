@@ -1,0 +1,45 @@
+services:
+  bench:
+    build: .
+    image: oxyde-benchmarks
+    container_name: oxyde-bench
+
+    # Resource limits for reproducible results
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '2'
+
+    # Mount results directory to persist output
+    volumes:
+      - ./results:/app/results
+
+    # Default: run PostgreSQL benchmark
+    # Override with: docker-compose run bench --db mysql
+    command: ["--db", "postgres"]
+
+  # Convenience services for specific databases
+  bench-postgres:
+    extends:
+      service: bench
+    container_name: oxyde-bench-pg
+    command: ["--db", "postgres"]
+
+  bench-mysql:
+    extends:
+      service: bench
+    container_name: oxyde-bench-mysql
+    command: ["--db", "mysql"]
+
+  bench-sqlite:
+    extends:
+      service: bench
+    container_name: oxyde-bench-sqlite
+    command: ["--db", "sqlite"]
+
+  bench-all:
+    extends:
+      service: bench
+    container_name: oxyde-bench-all
+    command: ["--db", "all"]
