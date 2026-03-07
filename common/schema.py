@@ -294,6 +294,7 @@ async def prepare_data(db_url: str, users: int = 1000, posts_per_user: int = 5) 
 async def _prepare_sqlite(db_url: str, users: int, posts_per_user: int) -> None:
     """Prepare test data for SQLite."""
     import random
+    random.seed(69)
 
     # Handle both sqlite:// and sqlite:/// formats
     if db_url.startswith("sqlite:///"):
@@ -373,6 +374,7 @@ async def _prepare_sqlite(db_url: str, users: int, posts_per_user: int) -> None:
 async def _prepare_postgres(db_url: str, users: int, posts_per_user: int) -> None:
     """Prepare test data for PostgreSQL."""
     import random
+    random.seed(69)
 
     conn = await asyncpg.connect(db_url)
     try:
@@ -440,6 +442,7 @@ async def _prepare_postgres(db_url: str, users: int, posts_per_user: int) -> Non
 async def _prepare_mysql(db_url: str, users: int, posts_per_user: int) -> None:
     """Prepare test data for MySQL."""
     import random
+    random.seed(69)
 
     params = _parse_mysql_url(db_url)
     conn = await aiomysql.connect(**params)

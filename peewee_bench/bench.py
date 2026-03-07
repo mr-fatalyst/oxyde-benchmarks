@@ -118,11 +118,14 @@ class PeeweeBenchmark(Benchmark):
 
     async def insert_single(self) -> int:
         """Insert a single User record."""
+        import uuid
+
+        email = f"test_{uuid.uuid4().hex}@example.com"
 
         def _insert():
             user = User.create(
                 name="TestUser",
-                email=f"test{random.randint(1, 999999)}@example.com",
+                email=email,
                 age=25,
             )
             return user.id
@@ -309,7 +312,7 @@ class PeeweeBenchmark(Benchmark):
 
         async def select_random_user():
             def _select():
-                pk = random.randint(1, 100)
+                pk = random.randint(1, 1000)
                 try:
                     return User.get_by_id(pk)
                 except Exception:

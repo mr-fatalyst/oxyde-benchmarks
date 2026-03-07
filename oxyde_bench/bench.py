@@ -2,7 +2,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from oxyde import AsyncDatabase, Q, disconnect_all
+from oxyde import AsyncDatabase, PoolSettings, Q, disconnect_all
 from common.base import Benchmark
 from oxyde_bench.models import User, Post, Tag, PostTag
 
@@ -23,7 +23,12 @@ class OxydeBenchmark(Benchmark):
 
     async def setup(self, db_url: str) -> None:
         """Initialize connection."""
-        self.db = AsyncDatabase(db_url, name=self.db_name, overwrite=True)
+        self.db = AsyncDatabase(
+            db_url,
+            name=self.db_name,
+            overwrite=True,
+            settings=PoolSettings(min_connections=5, max_connections=20),
+        )
         await self.db.connect()
 
     async def teardown(self) -> None:
@@ -67,11 +72,7 @@ class OxydeBenchmark(Benchmark):
             )
             for i in range(count)
         ]
-        try:
-            await User.objects.bulk_create(users, using=self.db_name, batch_size=10000)
-        except Exception as e:
-            if "Failed to extract ID from RETURNING" not in str(e):
-                raise
+        await User.objects.bulk_create(users, using=self.db_name, batch_size=10000)
         return list(range(count))
 
     async def select_pk(self, pk: int) -> Any:
@@ -180,7 +181,7 @@ class OxydeBenchmark(Benchmark):
         import asyncio
 
         async def select_random_user():
-            pk = random.randint(1, 100)
+            pk = random.randint(1, 1000)
             try:
                 return await User.objects.get(using=self.db_name, id=pk)
             except Exception:

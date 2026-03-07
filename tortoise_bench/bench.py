@@ -38,20 +38,75 @@ class TortoiseBenchmark(Benchmark):
         if db_url.startswith("sqlite://"):
             path = db_url[9:]  # Remove "sqlite://"
             tortoise_url = f"sqlite://{path}"
+            tortoise_config = None
         elif db_url.startswith("postgresql://"):
-            tortoise_url = db_url.replace("postgresql://", "postgres://")
+            tortoise_url = None
+            from urllib.parse import urlparse
+            parsed = urlparse(db_url)
+            tortoise_config = {
+                "connections": {
+                    "default": {
+                        "engine": "tortoise.backends.asyncpg",
+                        "credentials": {
+                            "host": parsed.hostname or "localhost",
+                            "port": parsed.port or 5432,
+                            "user": parsed.username or "bench",
+                            "password": parsed.password or "bench",
+                            "database": parsed.path.lstrip("/") or "bench",
+                            "minsize": 5,
+                            "maxsize": 20,
+                        },
+                    }
+                },
+                "apps": {
+                    "models": {
+                        "models": ["tortoise_bench.models"],
+                        "default_connection": "default",
+                    }
+                },
+            }
+        elif db_url.startswith("mysql://"):
+            tortoise_url = None
+            from urllib.parse import urlparse
+            parsed = urlparse(db_url)
+            tortoise_config = {
+                "connections": {
+                    "default": {
+                        "engine": "tortoise.backends.mysql",
+                        "credentials": {
+                            "host": parsed.hostname or "localhost",
+                            "port": parsed.port or 3306,
+                            "user": parsed.username or "bench",
+                            "password": parsed.password or "bench",
+                            "database": parsed.path.lstrip("/") or "bench",
+                            "minsize": 5,
+                            "maxsize": 20,
+                        },
+                    }
+                },
+                "apps": {
+                    "models": {
+                        "models": ["tortoise_bench.models"],
+                        "default_connection": "default",
+                    }
+                },
+            }
         else:
             tortoise_url = db_url
+            tortoise_config = None
 
         print(
-            f"[TORTOISE] Calling Tortoise.init() with url={tortoise_url}",
+            f"[TORTOISE] Calling Tortoise.init()",
             file=sys.stderr,
             flush=True,
         )
-        await Tortoise.init(
-            db_url=tortoise_url,
-            modules={"models": ["tortoise_bench.models"]},
-        )
+        if tortoise_config:
+            await Tortoise.init(config=tortoise_config)
+        else:
+            await Tortoise.init(
+                db_url=tortoise_url,
+                modules={"models": ["tortoise_bench.models"]},
+            )
         print("[TORTOISE] Tortoise.init() completed", file=sys.stderr, flush=True)
 
     async def teardown(self) -> None:
@@ -64,7 +119,9 @@ class TortoiseBenchmark(Benchmark):
         # Reset singleton state for next init (required for repeated init/teardown cycles)
         await Tortoise._reset_apps()
         print("[TORTOISE] _reset_apps() done", file=sys.stderr, flush=True)
-        Tortoise._inited = False
+        ctx = Tortoise._get_context()
+        if ctx is not None:
+            ctx._inited = False
         print("[TORTOISE] teardown() completed", file=sys.stderr, flush=True)
 
     async def clean_data(self) -> None:
@@ -81,32 +138,25 @@ class TortoiseBenchmark(Benchmark):
     async def insert_single(self) -> int:
         """Insert a single User record."""
         import uuid
-        from datetime import datetime, timezone
-
-        now_dt = datetime.now(timezone.utc)
 
         user = await User.create(
             name="TestUser",
             email=f"test_{uuid.uuid4().hex}@example.com",
             age=25,
-            created_at=now_dt,
         )
         return user.id
 
     async def insert_bulk(self, count: int) -> list[int]:
         """Insert multiple User records at once."""
         import uuid
-        from datetime import datetime, timezone
 
         batch_id = uuid.uuid4().hex[:8]
-        now_dt = datetime.now(timezone.utc)
 
         users = [
             User(
                 name=f"BulkUser{i}",
                 email=f"bulk_{batch_id}_{i}@example.com",
                 age=20 + i % 50,
-                created_at=now_dt,
             )
             for i in range(count)
         ]
@@ -204,7 +254,7 @@ class TortoiseBenchmark(Benchmark):
         """Run multiple SELECT queries concurrently."""
 
         async def select_random_user():
-            pk = random.randint(1, 100)
+            pk = random.randint(1, 1000)
             try:
                 return await User.get(id=pk)
             except Exception:

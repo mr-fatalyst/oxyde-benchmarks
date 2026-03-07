@@ -92,7 +92,7 @@ FILTER_COMPLEX = (
     "SELECT * FROM users WHERE (age >= $1 AND is_active = $2) OR name LIKE $3"
 )
 ORDER_LIMIT = "SELECT * FROM users ORDER BY created_at DESC LIMIT $1"
-JOIN_FILTER = "SELECT p.*, u.name as user_name, u.email as user_email FROM posts p JOIN users u ON p.user_id = u.id WHERE u.age >= $1"
+JOIN_FILTER = "SELECT p.*, u.* FROM posts p JOIN users u ON p.user_id = u.id WHERE u.age >= $1"
 
 # CRUD queries - SQLite (?, ?, ...)
 INSERT_USER_SQLITE = (
@@ -108,7 +108,7 @@ FILTER_COMPLEX_SQLITE = (
     "SELECT * FROM users WHERE (age >= ? AND is_active = ?) OR name LIKE ?"
 )
 ORDER_LIMIT_SQLITE = "SELECT * FROM users ORDER BY created_at DESC LIMIT ?"
-JOIN_FILTER_SQLITE = "SELECT p.*, u.name as user_name, u.email as user_email FROM posts p JOIN users u ON p.user_id = u.id WHERE u.age >= ?"
+JOIN_FILTER_SQLITE = "SELECT p.*, u.* FROM posts p JOIN users u ON p.user_id = u.id WHERE u.age >= ?"
 
 # CRUD queries - MySQL (%s, %s, ...)
 INSERT_USER_MYSQL = "INSERT INTO users (name, email, age) VALUES (%s, %s, %s)"
@@ -122,14 +122,14 @@ FILTER_COMPLEX_MYSQL = (
     "SELECT * FROM users WHERE (age >= %s AND is_active = %s) OR name LIKE %s"
 )
 ORDER_LIMIT_MYSQL = "SELECT * FROM users ORDER BY created_at DESC LIMIT %s"
-JOIN_FILTER_MYSQL = "SELECT p.*, u.name as user_name, u.email as user_email FROM posts p JOIN users u ON p.user_id = u.id WHERE u.age >= %s"
+JOIN_FILTER_MYSQL = "SELECT p.*, u.* FROM posts p JOIN users u ON p.user_id = u.id WHERE u.age >= %s"
 
 # Common queries (no parameters)
 AGGREGATE_COUNT = "SELECT COUNT(*) as count FROM users"
 AGGREGATE_MIXED = (
     "SELECT COUNT(*) as count, AVG(age) as avg_age, MAX(age) as max_age FROM users"
 )
-JOIN_SIMPLE = "SELECT p.*, u.name as user_name, u.email as user_email FROM posts p JOIN users u ON p.user_id = u.id"
+JOIN_SIMPLE = "SELECT p.*, u.* FROM posts p JOIN users u ON p.user_id = u.id"
 
 # Cleanup
 TRUNCATE_USERS = "DELETE FROM users"

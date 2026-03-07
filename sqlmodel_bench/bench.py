@@ -5,7 +5,7 @@ from typing import Any
 from sqlmodel import select, col, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy import delete, event
 
 from common.base import Benchmark
@@ -49,7 +49,7 @@ class SQLModelBenchmark(Benchmark):
             async_url,
             echo=False,
             pool_pre_ping=True,
-            pool_size=5,
+            pool_size=10,
             max_overflow=10,
         )
 
@@ -88,10 +88,12 @@ class SQLModelBenchmark(Benchmark):
 
     async def insert_single(self) -> int:
         """Insert a single User record."""
+        import uuid
+
         async with self.SessionLocal() as session:
             user = User(
                 name="TestUser",
-                email=f"test{random.randint(1, 999999)}@example.com",
+                email=f"test_{uuid.uuid4().hex}@example.com",
                 age=25,
             )
             session.add(user)
@@ -221,9 +223,9 @@ class SQLModelBenchmark(Benchmark):
         """Join Posts with Users."""
         async with self.SessionLocal() as session:
             result = await session.execute(
-                select(Post).join(User).options(selectinload(Post.user))
+                select(Post).options(joinedload(Post.user))
             )
-            return result.scalars().all()
+            return result.unique().scalars().all()
 
     async def join_filter(self) -> list:
         """Join Posts with Users WHERE user.age >= 18."""
@@ -232,9 +234,9 @@ class SQLModelBenchmark(Benchmark):
                 select(Post)
                 .join(User)
                 .where(User.age >= 18)
-                .options(selectinload(Post.user))
+                .options(joinedload(Post.user))
             )
-            return result.scalars().all()
+            return result.unique().scalars().all()
 
     async def prefetch_related(self) -> list:
         """Load Users with their Posts (avoid N+1)."""
@@ -261,7 +263,7 @@ class SQLModelBenchmark(Benchmark):
 
         async def select_random_user():
             async with self.SessionLocal() as session:
-                pk = random.randint(1, 100)
+                pk = random.randint(1, 1000)
                 return await session.get(User, pk)
 
         tasks = [select_random_user() for _ in range(concurrency)]

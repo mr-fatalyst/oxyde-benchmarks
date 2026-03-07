@@ -10,7 +10,7 @@ class User(Model):
     email = fields.CharField(max_length=255, unique=True)
     age = fields.IntField()
     is_active = fields.BooleanField(default=True)
-    created_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
 
     posts: fields.ReverseRelation["Post"]
 
@@ -26,7 +26,7 @@ class Post(Model):
     title = fields.CharField(max_length=200)
     content = fields.TextField(default="")
     views = fields.IntField(default=0)
-    created_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
 
     post_tags: fields.ReverseRelation["PostTag"]
 

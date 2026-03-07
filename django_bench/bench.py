@@ -17,13 +17,8 @@ def run_sync(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         def _run():
-            # Ensure we have a fresh connection in this thread
             connection.ensure_connection()
-            try:
-                return func(*args, **kwargs)
-            finally:
-                # Close connection after use to avoid thread issues
-                connection.close()
+            return func(*args, **kwargs)
 
         return await asyncio.to_thread(_run)
 
@@ -69,7 +64,7 @@ class DjangoBenchmark(Benchmark):
         common_options = {
             "TIME_ZONE": None,
             "CONN_HEALTH_CHECKS": False,
-            "CONN_MAX_AGE": 0,
+            "CONN_MAX_AGE": None,
             "AUTOCOMMIT": True,
             "OPTIONS": {},
             "ATOMIC_REQUESTS": False,
@@ -157,13 +152,16 @@ class DjangoBenchmark(Benchmark):
 
     async def insert_single(self) -> int:
         """Insert a single User record."""
+        import uuid
         from django_bench.models import User
+
+        email = f"test_{uuid.uuid4().hex}@example.com"
 
         @run_sync
         def _insert():
             user = User.objects.create(
                 name="TestUser",
-                email=f"test{random.randint(1, 999999)}@example.com",
+                email=email,
                 age=25,
             )
             return user.id
@@ -370,7 +368,7 @@ class DjangoBenchmark(Benchmark):
         async def select_random_user():
             @run_sync
             def _select():
-                pk = random.randint(1, 100)
+                pk = random.randint(1, 1000)
                 try:
                     return User.objects.get(id=pk)
                 except User.DoesNotExist:

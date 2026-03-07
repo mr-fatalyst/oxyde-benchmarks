@@ -4,7 +4,7 @@ from typing import Any
 
 from piccolo.engine.sqlite import SQLiteEngine
 from piccolo.engine.postgres import PostgresEngine
-from piccolo.query.functions.aggregate import Avg, Max
+from piccolo.query.functions.aggregate import Count, Avg, Max
 
 from common.base import Benchmark
 from piccolo_bench.models import User, Post, Tag, PostTag
@@ -94,9 +94,11 @@ class PiccoloBenchmark(Benchmark):
 
     async def insert_single(self) -> int:
         """Insert a single User record."""
+        import uuid
+
         user = User(
             name="TestUser",
-            email=f"test{random.randint(1, 999999)}@example.com",
+            email=f"test_{uuid.uuid4().hex}@example.com",
             age=25,
         )
         await user.save()
@@ -174,15 +176,19 @@ class PiccoloBenchmark(Benchmark):
 
     async def aggregate_mixed(self) -> dict:
         """Multiple aggregates: COUNT, AVG(age), MAX(age)."""
-        count_result = await User.count()
-        avg_result = await User.select(Avg(User.age)).first()
-        max_result = await User.select(Max(User.age)).first()
+        result = await User.select(
+            Count(User.id),
+            Avg(User.age),
+            Max(User.age),
+        ).first()
 
-        return {
-            "count": count_result or 0,
-            "avg_age": float(avg_result.get("avg", 0)) if avg_result else 0.0,
-            "max_age": max_result.get("max", 0) if max_result else 0,
-        }
+        if result:
+            return {
+                "count": result.get("count", 0) or 0,
+                "avg_age": float(result.get("avg", 0)) if result.get("avg") else 0.0,
+                "max_age": result.get("max", 0) or 0,
+            }
+        return {"count": 0, "avg_age": 0.0, "max_age": 0}
 
     # =========================================================================
     # Relations
@@ -255,7 +261,7 @@ class PiccoloBenchmark(Benchmark):
         """Run multiple SELECT queries concurrently."""
 
         async def select_random_user():
-            pk = random.randint(1, 100)
+            pk = random.randint(1, 1000)
             return await User.objects().where(User.id == pk).first()
 
         tasks = [select_random_user() for _ in range(concurrency)]

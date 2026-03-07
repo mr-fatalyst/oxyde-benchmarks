@@ -229,3 +229,169 @@ Peak memory (MB):
 
 - Users: 1000
 - Posts per user: 20
+
+---
+
+## Аудит корректности и честности бенчмарков
+
+**Date:** March 6, 2026
+
+### Критические проблемы (влияют на результаты)
+
+#### 1. `join_simple` / `join_filter` -- не все ORM делают настоящий JOIN
+
+| ORM | Что делает | SQL-запросов |
+|-----|-----------|-------------|
+| asyncpg / Oxyde / Django / Peewee / Piccolo | SQL JOIN | 1 |
+| **SQLAlchemy / SQLModel** | `.join()` + `selectinload()` | **2** (JOIN + отдельный SELECT IN) |
+| **Tortoise** | `prefetch_related("user")` | **2** (SELECT posts + SELECT users WHERE IN) |
+
+`sqlalchemy_bench/bench.py:219-222` и `sqlmodel_bench/bench.py:222-226` используют `selectinload` вместо `joinedload`. Это не JOIN, а отдельный запрос. Для честного теста JOIN нужно:
+
+```python
+from sqlalchemy.orm import joinedload
+select(Post).options(joinedload(Post.user))
+```
+
+Tortoise (`tortoise_bench/bench.py:191`) использует `prefetch_related("user")` -- это тоже 2 запроса, а не JOIN. Tortoise ORM не имеет аналога Django `select_related`, поэтому это ограничение ORM, но тест измеряет не то, что заявлено.
+
+**Влияние:** SQLAlchemy/SQLModel и Tortoise штрафуются на тестах `join_simple`/`join_filter`.
+
+---
+
+#### 2. Django: `CONN_MAX_AGE=0` -- нет переиспользования соединений
+
+`django_bench/bench.py:74`: `"CONN_MAX_AGE": 0` -- каждый вызов создает и закрывает соединение. Вместе с `run_sync` декоратором (`bench.py:14-30`), который делает `connection.ensure_connection()` + `connection.close()` на каждый вызов, Django платит overhead подключения на **каждой** итерации.
+
+В продакшене Django используют `CONN_MAX_AGE=None` (persistent connections) или pgbouncer. Для бенчмарка это значительный штраф, объясняющий 10-20x разницу с async ORM.
+
+---
+
+#### 3. Piccolo `aggregate_mixed` -- 3 запроса вместо 1
+
+`piccolo_bench/bench.py:177-185`:
+
+```python
+count_result = await User.count()
+avg_result = await User.select(Avg(User.age)).first()
+max_result = await User.select(Max(User.age)).first()
+```
+
+Все остальные ORM делают это одним запросом. Piccolo тоже может:
+
+```python
+result = await User.select(Count(), Avg(User.age), Max(User.age)).first()
+```
+
+---
+
+#### 4. SQLAlchemy/SQLModel `insert_bulk` -- не используют bulk API
+
+`sqlalchemy_bench/bench.py:106-117` и `sqlmodel_bench/bench.py:102-118`: используют `session.add_all()` + `commit()`. Это проходит через полный unit-of-work (identity map, dirty tracking). Идиоматический bulk insert в SQLAlchemy:
+
+```python
+from sqlalchemy import insert
+session.execute(insert(User), [{"name": ..., "email": ...} for ...])
+```
+
+Остальные ORM используют свои bulk API: Django `bulk_create`, Tortoise `bulk_create`, Peewee `insert_many`, asyncpg `executemany`.
+
+---
+
+#### 5. Нет `random.seed()` -- разные данные для каждого ORM
+
+`common/schema.py:315-316`:
+
+```python
+random.randint(15, 70)       # age
+random.choice([True, False]) # is_active
+```
+
+Без seed каждый ORM (в отдельном subprocess) получает **разные** данные. Это значит разное количество пользователей с `age >= 18`, разную долю `is_active=True`, что влияет на:
+
+- `select_filter` (age >= 18) -- разное количество возвращаемых строк
+- `filter_complex` (age >= 18 AND is_active) -- разное количество строк
+- `update_bulk` (age < 18) -- разное количество обновляемых строк
+
+**Решение:** добавить `random.seed(42)` в начало `prepare_data()`.
+
+---
+
+### Средние проблемы
+
+#### 6. Tortoise `insert_single`/`insert_bulk` передают `created_at` явно
+
+`tortoise_bench/bench.py:88-95`: `created_at=datetime.now(timezone.utc)` -- другие ORM полагаются на DB default (`DEFAULT NOW()`). Это добавляет overhead на создание datetime и сериализацию, плюс SQL запрос включает дополнительную колонку.
+
+#### 7. Inconsistent email generation
+
+| Метод | ORM |
+|-------|-----|
+| `uuid.uuid4().hex` (безопасно) | Oxyde, asyncpg, Tortoise |
+| `random.randint(1, 999999)` (риск коллизий) | Django, SQLAlchemy, Piccolo, Peewee, SQLModel |
+
+UUID generation медленнее randint. При 110 итерациях (warmup + measure) с `randint(1, 999999)` вероятность коллизии ~0.6% (birthday paradox), что может вызвать ошибку UNIQUE constraint.
+
+#### 8. Oxyde `insert_bulk` глотает ошибки
+
+`oxyde_bench/bench.py:72-74`:
+
+```python
+except Exception as e:
+    if "Failed to extract ID from RETURNING" not in str(e):
+        raise
+```
+
+Если `bulk_create` не может вернуть ID, ошибка игнорируется. Неясно, корректно ли вставлены данные.
+
+#### 9. Мутирующие тесты не имеют per-iteration setup/teardown
+
+`run_single_orm.py:124-128`: `measure()` вызывается без `setup`/`teardown` callbacks, хотя `config.py` идентифицирует `MUTATING_TESTS`. Для `insert_bulk_100` данные накапливаются -- к концу теста в таблице 11000 лишних записей. Все ORM страдают одинаково, но растущий объем данных добавляет шум в измерения.
+
+---
+
+### Незначительные проблемы
+
+#### 10. Connection pool -- разные размеры
+
+| ORM | Max connections |
+|-----|----------------|
+| asyncpg | 20 |
+| SQLAlchemy / SQLModel | 15 (5 + 10 overflow) |
+| Piccolo | 20 |
+| Tortoise | default (не задано явно) |
+| Django | 1 (CONN_MAX_AGE=0) |
+| Peewee | 1 per thread |
+
+SQLAlchemy/SQLModel имеют max 15 vs 20 у asyncpg/Piccolo -- может влиять на concurrent тесты.
+
+#### 11. `concurrent_select` -- ID range
+
+Base class использует `random.randint(1, 1000)`, все override используют `random.randint(1, 100)`. При 1000 пользователях оба диапазона валидны, но запросы к ID 1-100 могут чаще попадать в кеш.
+
+---
+
+### Итоговая карта перекосов
+
+| ORM | Направление bias | Причина |
+|-----|------------------|---------|
+| **Django** | Сильный штраф | CONN_MAX_AGE=0, to_thread overhead |
+| **Peewee** | Средний штраф | to_thread overhead, 1 connection/thread |
+| **SQLAlchemy** | Средний штраф | selectinload вместо joinedload в join тестах, add_all вместо bulk insert |
+| **SQLModel** | Средний штраф | Те же проблемы что SQLAlchemy |
+| **Tortoise** | Средний штраф | prefetch_related вместо JOIN, явный created_at |
+| **Piccolo** | Средний штраф | 3 запроса в aggregate_mixed |
+| **Oxyde** | Легкое преимущество | Глотает ошибки в bulk_create |
+| **asyncpg** | Чистый baseline | Корректен |
+
+---
+
+### Рекомендации для исправления
+
+1. **Критично:** Фиксированный `random.seed(42)` в `prepare_data()` для воспроизводимости данных
+2. **Критично:** SQLAlchemy/SQLModel: `joinedload` вместо `selectinload` в join тестах
+3. **Важно:** Django: `CONN_MAX_AGE=None` для persistent connections
+4. **Важно:** Piccolo: один запрос для `aggregate_mixed`
+5. **Важно:** SQLAlchemy/SQLModel: использовать core `insert()` для bulk операций
+6. **Желательно:** Единый метод генерации email (везде `uuid.uuid4()`)
+7. **Желательно:** Передавать `setup`/`teardown` в `measure()` для мутирующих тестов
