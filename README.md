@@ -26,7 +26,7 @@ See the full benchmark report with charts and detailed analysis:
 
 **[View Benchmark Report (REPORT.md)](REPORT.md)**
 
-Latest results from January 23, 2026 comparing all 7 ORMs across PostgreSQL, MySQL, and SQLite.
+Latest results from March 7, 2026 comparing all 7 ORMs across PostgreSQL, MySQL, and SQLite.
 
 ## Quick Start
 
