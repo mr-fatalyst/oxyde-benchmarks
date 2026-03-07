@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     pkg-config \
+    git \
     # SQLite (already included in Python, but CLI is useful)
     sqlite3 \
     # Cleanup

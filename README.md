@@ -167,6 +167,10 @@ results/2026-01-23_09-12-34_postgres/
 - **Metrics**: ops/sec, mean, median, stddev, p95, p99
 - **Fair comparison**: Same SQL, same data volume, same pool settings
 
+### SQLite Note
+
+Each ORM is benchmarked with its default configuration — no manual tuning is applied. Oxyde enables `journal_mode=WAL` and `synchronous=NORMAL` by default for SQLite connections, while other ORMs use SQLite defaults (`journal_mode=DELETE`, `synchronous=FULL`). This significantly impacts write performance on SQLite and reflects the real out-of-the-box experience for each ORM.
+
 ### Test Isolation
 
 - **Before each test**: Schema dropped, recreated, data populated

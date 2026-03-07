@@ -1,5 +1,5 @@
-# Oxyde ORM (installed separately via editable install from local path)
-oxyde>=0.2.0
+# Oxyde ORM
+oxyde>=0.4.0
 
 # Database drivers
 asyncpg>=0.31.0
@@ -7,9 +7,10 @@ psycopg[binary]>=3.2.0
 psycopg2-binary>=2.9.11
 aiosqlite>=0.21.0,<0.22.0
 aiomysql>=0.3.2
+mysqlclient>=2.2.0
 
 # ORMs
-anyio>=4.0.0  # required by tortoise-orm 0.25.2 (not declared in their deps)
+anyio>=4.0.0
 django>=5.1
 sqlalchemy[asyncio]>=2.0.36
 tortoise-orm>=0.25.1
